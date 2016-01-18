@@ -1,1 +1,0 @@
-# nrk-unge-lovende
