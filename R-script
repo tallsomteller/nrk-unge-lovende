@@ -1,13 +1,17 @@
+#Bibliotek som gjør det mulig å kalle opp Google Visualization fra R
 library(googleVis)
 
+#Leser inn CSV-fil
 dat = read.csv("unge-lovende.csv", header = TRUE)
 
+#Lager en frekvenstabell og et plot over hvor mange ganger hver episode er sett
 episode = substr(dat$programId,10,10)
 tbl1 = table(episode)
 df1 = as.data.frame(tbl1)
 bar1 = gvisBarChart(df1)
 plot(bar1)
 
+#Drar ut ukedag fra timestamp og ser på om forskjeller i visninger mellom ulike ukedager
 ukedager = weekdays(as.POSIXct(dat$visitStartTime, origin="1970-01-01"))
 tbl2 = table(ukedager)
 rekkefolge=c('mandag','tirsdag','onsdag','torsdag','fredag','lørdag','søndag')
@@ -15,8 +19,10 @@ tbl2=tbl2[rekkefolge]
 df2 = as.data.frame(tbl2)
 print(df2)
 
+#Ser på sammenheng episode ukedager i frekvenstabell
 table(episode,ukedager)
 
+#Ser på hvordan sesjoner fordeler seg på døgnets ulike tidpunkter
 klokketime = strftime(as.POSIXct(dat$visitStartTime, origin="1970-01-01"), format="%H")
 tbl3 = table(klokketime)
 df3 = as.data.frame(tbl3)
@@ -24,28 +30,34 @@ print(df3)
 bar3 = gvisBarChart(df3)
 plot(bar3)
 
+#Sjekker at fordelinger til minutttidpunkter er uniform noe den bør være
 minutt = strftime(as.POSIXct(dat$visitStartTime, origin="1970-01-01"), format="%M")
 table(minutt)
 
+#Datakvalitetssjekk - kontrollerer tidspunkter for første og siste observasjon
 strftime(as.POSIXct(min(dat$visitStartTime), origin="1970-01-01"))
 weekdays(as.POSIXct(min(dat$visitStartTime), origin="1970-01-01"))
 strftime(as.POSIXct(max(dat$visitStartTime), origin="1970-01-01"))
 weekdays(as.POSIXct(max(dat$visitStartTime), origin="1970-01-01"))
 
+#Ser på fordelingen til klokkelslett og ser merkelige funn i døgnets første minutter
 bar4 = gvisBarChart(df4)
 klokkeslett = strftime(as.POSIXct(dat$visitStartTime, origin="1970-01-01"), format="%H:%M")
 tbl4 = table(klokkeslett)
 df4 = as.data.frame(tbl4)
 print(df4)
 
+#Sjekker at funnet ovenfor gjelder for alle ukedager
 tbl5 = table(klokketime,ukedager)
 print(tbl5)
 
+#Ser på fordelingen til timeWithinVisit i minutter
 table(round(dat$timeWithinVisit/60000))
 
+#Ser på hvordan visninger fordeler seg på datoer
 datoer = strftime(as.POSIXct(dat$visitStartTime, origin="1970-01-01"), format="%D")
 table(datoer)
 
+#Ser på toveistabell hvordan visninger fordeler seg over klokketimer og datoer, eksporterer de relative frekvensene til Excel og utfører variansanalyse manuelt for å få følelse med tallene
 tbl6 = table(klokketime,datoer)
 prob6 = prop.table(tbl6, 2)
-plot(prob6)
