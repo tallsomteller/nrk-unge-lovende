@@ -13,10 +13,13 @@ ENCLOSED BY '"'
 LINES TERMINATED BY '\n'
 IGNORE 1 ROWS;
 
+#Sjekker om brukere med svært mange innlogginger
 select userId, count(*) as antall from CSVImport group by userId order by antall desc;
 
+#Sjekker toppbruker
 select * from CSVImport where userId='325201099589514985';
 
+#Teller unike brukere
 select count(distinct userId) from CSVImport;
 
 drop table temp_tab;
@@ -32,18 +35,22 @@ from CSVImport;
 
 select avg(minutter) from temp_tab;
 
+#Teller brukere som har sett alle seks episoder ferdig
 select count(*) from (select userId, count(distinct programId) as antall from temp_tab where minutter>22 group by userId) sub where antall=6;
 
+#Teller brukere som har sett alle seks episoder ferdig på samme dato
 select count(*) from (select userId, count(distinct programId, dato) as antall from temp_tab where minutter>22 group by userId, dato) sub where antall=6;
 
 select programId, avg(minutter) from temp_tab group by programId;
 
+#Sjekker om brukere åpner samme episode flere ganger i løpet samme dag
 select * from (select userId, programId, dato, count(*) as antall from temp_tab group by userId, programId, dato) tmp where antall>2 order by antall desc;
 
+#Teller tilfeller  dere brukere åpner samme episode flere ganger i løpet samme dag
 select dato, count(*) as ant_multi from
 (select * from (select userId, programId, dato, count(*) as antall from temp_tab group by userId, programId, dato) tmp where antall>2 order by antall desc) tmp2 group by dato order by dato;
 
-
+#Lager en temptabell for Bingewatching-analyser
 create temporary table bingewatch as
 select tmp1.* from CSVImport tmp1
 
@@ -53,10 +60,42 @@ on tmp2.userId=tmp1.userId and antall=6
 
 order by tmp1.userId, programId;
 
-#Antall timer
+#Antall timer brukt på å se alle episoder
 select timer, count(*) as frekvens from
 (select round((max(visitStartTime+(timeWithinVisit/1000))-min(visitStartTime))/(60*60)) as timer from bingewatch group by userId) timetab group by timer;
 
-#Antall døgn
+#Antall døgn brukt på å se alle episoder
 select dogn, count(*) as frekvens from
 (select ceil((max(visitStartTime+(timeWithinVisit/1000))-min(visitStartTime))/(24*60*60)) as dogn from bingewatch group by userId) dogntab group by dogn;
+
+#Bergner timer gått fra lansering
+select round((visitStartTime - (select min(visitStartTime)  as dato from CSVImport))/(60*60)) as timerfrastart from CSVImport;
+
+select timerfrastart, count(*) from
+(select round((visitStartTime - (select min(visitStartTime)  as dato from CSVImport))/(60*60)) as timerfrastart from CSVImport) tmp group by timerfrastart;
+
+#Analyse på gruppe som starter sesjoner mellom 00:00 og 00:59
+select count(distinct userId) from
+(select 
+userId,
+DATE_FORMAT(FROM_UNIXTIME(visitStartTime), '%H')  as klokketime
+from CSVImport) tmp where klokketime="00";
+
+select count(distinct userId) from
+(select 
+userId,
+DATE_FORMAT(FROM_UNIXTIME(visitStartTime), '%H')  as klokketime
+from CSVImport) tmp where klokketime!="00";
+
+select count(distinct userId) from CSVImport;
+
+create temporary table feillog as
+select 
+userId,
+programId,
+ceil(visitStartTime/(60*60)) as klokketime
+from CSVImport;
+
+#Analyse av når feilinnlogginger skjer, dvs at samme bruker åpner samme episode flere ganger i løpet av en klokketime
+select klokketime, count(*) as ant_multi from
+(select * from (select userId, programId, klokketime, count(*) as antall from feillog group by userId, programId, klokketime) tmp where antall>1 order by antall desc) tmp2 group by klokketime order by klokketime;
