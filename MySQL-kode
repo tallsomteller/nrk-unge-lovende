@@ -1,0 +1,62 @@
+DROP TABLE CSVImport;
+CREATE TABLE CSVImport(
+userId VARCHAR(256),
+programId VARCHAR(256),
+visitStartTime LONG,
+timeWithinVisit LONG);
+
+
+LOAD DATA INFILE 'unge-lovende.csv' 
+INTO TABLE CSVImport
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS;
+
+select userId, count(*) as antall from CSVImport group by userId order by antall desc;
+
+select * from CSVImport where userId='325201099589514985';
+
+select count(distinct userId) from CSVImport;
+
+drop table temp_tab;
+create temporary table temp_tab as
+select 
+userId,
+programId,
+visitStartTime,
+timeWithinVisit,
+DATE_FORMAT(FROM_UNIXTIME(visitStartTime), '%e %b %Y')  as dato,
+timeWithinVisit/60000 as minutter
+from CSVImport;
+
+select avg(minutter) from temp_tab;
+
+select count(*) from (select userId, count(distinct programId) as antall from temp_tab where minutter>22 group by userId) sub where antall=6;
+
+select count(*) from (select userId, count(distinct programId, dato) as antall from temp_tab where minutter>22 group by userId, dato) sub where antall=6;
+
+select programId, avg(minutter) from temp_tab group by programId;
+
+select * from (select userId, programId, dato, count(*) as antall from temp_tab group by userId, programId, dato) tmp where antall>2 order by antall desc;
+
+select dato, count(*) as ant_multi from
+(select * from (select userId, programId, dato, count(*) as antall from temp_tab group by userId, programId, dato) tmp where antall>2 order by antall desc) tmp2 group by dato order by dato;
+
+
+create temporary table bingewatch as
+select tmp1.* from CSVImport tmp1
+
+inner join
+(select userId, count(distinct programId) as antall from temp_tab where minutter>22 group by userId) tmp2 
+on tmp2.userId=tmp1.userId and antall=6
+
+order by tmp1.userId, programId;
+
+#Antall timer
+select timer, count(*) as frekvens from
+(select round((max(visitStartTime+(timeWithinVisit/1000))-min(visitStartTime))/(60*60)) as timer from bingewatch group by userId) timetab group by timer;
+
+#Antall døgn
+select dogn, count(*) as frekvens from
+(select ceil((max(visitStartTime+(timeWithinVisit/1000))-min(visitStartTime))/(24*60*60)) as dogn from bingewatch group by userId) dogntab group by dogn;
